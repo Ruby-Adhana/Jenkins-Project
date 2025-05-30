@@ -1,0 +1,75 @@
+pipeline {
+    agent any
+
+    environment {
+        SONAR_HOME = tool name: 'sonarScanner', type: 'hudson.plugins.sonar.SonarRunnerInstallation'
+    }
+
+    stages {
+        stage("Clone_Code_from_Git") {
+            steps {
+                git url: "https://github.com/Ruby-Adhana/Jenkins-Project.git", branch: "master"
+            }
+        }
+
+        stage("SonarQube_Code_Scanner") {
+            steps {
+                withSonarQubeEnv("sonarScanner") {
+                    sh '''
+                        ${SONAR_HOME}/bin/sonar-scanner \
+                        -Dsonar.projectName=Forground-Project \
+                        -Dsonar.projectKey=forgound.com \
+                        -Dsonar.sources=.
+                    '''
+                }
+            }
+        }
+        // stage("Owasp_Dependencies_check_1") {
+        //     steps {
+        //         dependencyCheck additionalArguments: '--scan ./' , odcInstallation:'Owasp-DP'
+        //         dependencyCheckPublisher pattern: '**/dependencyCheckReport.xml'
+        //     }
+        // }
+  stage("Owasp_Dependencies_check_2") {
+    steps {
+        sh 'mkdir -p ReportOwasp'
+        dependencyCheck additionalArguments: '--scan ./ --out ReportOwasp', odcInstallation: 'Owasp-DP'
+        dependencyCheckPublisher pattern: 'ReportOwasp/dependency-check-report.xml'
+    }
+}
+// stage("SonarQube_Quality_gate") {
+//             steps {
+//                 timeout(time: 1 , unit: 'MINUTES'){
+//                  waitForQualityGate abortPipeline: true
+//             }
+//             }
+//         }
+
+
+        // stage("Trivy_Record_1") {
+        //     steps {
+        //         sh "trivy fs --format table -o trivyFSreport.html ."
+        //     }
+        // }
+        
+        stage("Trivy_Record_2") {
+            steps {
+                sh '''
+                mkdir -p ReportTrivy
+                trivy fs --format table -o ReportTrivy/trivy-fs-report.html .
+                '''
+            }
+        }
+
+
+        stage("Docker_Deployments") {
+            steps {
+               sh '''
+               docker build -t jokerimage .
+               docker run -d --name cont001 -p 8888:80 jokerimage
+               '''
+               
+            }
+        }
+    }
+}
